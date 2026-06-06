@@ -19,13 +19,13 @@ const cartVisible = ref(false)
 const cart = ref<{ bouquet: Bouquet; quantity: number }[]>([])
 
 const orderVisible = ref(false)
-const customerForm = ref<CustomerCreate>({
+const orderForm = ref({
   name: '',
   phone: '',
   address: '',
+  deliveryTime: '',
+  remark: '',
 })
-const deliveryTime = ref('')
-const remark = ref('')
 const formRef = ref()
 
 const totalAmount = computed(() => {
@@ -93,7 +93,7 @@ const openCheckout = () => {
 const submitOrder = async () => {
   try {
     await formRef.value.validate()
-    if (!deliveryTime.value) {
+    if (!orderForm.value.deliveryTime) {
       ElMessage.warning('请选择期望送达时间')
       return
     }
@@ -102,21 +102,24 @@ const submitOrder = async () => {
       quantity: c.quantity,
       unit_price: c.bouquet.price,
     }))
+    const customer: CustomerCreate = {
+      name: orderForm.value.name,
+      phone: orderForm.value.phone,
+      address: orderForm.value.address,
+    }
     const payload: OrderCreate = {
-      customer: customerForm.value,
+      customer,
       items,
-      delivery_address: customerForm.value.address,
-      delivery_phone: customerForm.value.phone,
-      delivery_time: new Date(deliveryTime.value).toISOString(),
-      remark: remark.value,
+      delivery_address: orderForm.value.address,
+      delivery_phone: orderForm.value.phone,
+      delivery_time: new Date(orderForm.value.deliveryTime).toISOString(),
+      remark: orderForm.value.remark,
     }
     const order = await createOrder(payload)
     ElMessage.success(`下单成功！订单号：${order.order_no}`)
     orderVisible.value = false
     cart.value = []
-    customerForm.value = { name: '', phone: '', address: '' }
-    deliveryTime.value = ''
-    remark.value = ''
+    orderForm.value = { name: '', phone: '', address: '', deliveryTime: '', remark: '' }
   } catch {}
 }
 
@@ -332,19 +335,19 @@ onMounted(fetchData)
     </el-drawer>
 
     <el-dialog v-model="orderVisible" title="确认订单" width="520px" :close-on-click-modal="false">
-      <el-form ref="formRef" :model="customerForm" label-width="90px">
+      <el-form ref="formRef" :model="orderForm" label-width="90px">
         <el-form-item label="收货人" prop="name" :rules="[{ required: true, message: '请输入收货人姓名' }]">
-          <el-input v-model="customerForm.name" placeholder="请输入姓名" />
+          <el-input v-model="orderForm.name" placeholder="请输入姓名" />
         </el-form-item>
         <el-form-item label="手机号" prop="phone" :rules="[{ required: true, message: '请输入手机号' }, { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号' }]">
-          <el-input v-model="customerForm.phone" placeholder="请输入手机号" />
+          <el-input v-model="orderForm.phone" placeholder="请输入手机号" />
         </el-form-item>
         <el-form-item label="收货地址" prop="address" :rules="[{ required: true, message: '请输入收货地址' }]">
-          <el-input v-model="customerForm.address" type="textarea" :rows="2" placeholder="请输入详细收货地址" />
+          <el-input v-model="orderForm.address" type="textarea" :rows="2" placeholder="请输入详细收货地址" />
         </el-form-item>
         <el-form-item label="送达时间" prop="deliveryTime" :rules="[{ required: true, message: '请选择期望送达时间' }]">
           <el-date-picker
-            v-model="deliveryTime"
+            v-model="orderForm.deliveryTime"
             type="datetime"
             placeholder="选择期望送达时间"
             format="YYYY-MM-DD HH:mm"
@@ -352,8 +355,8 @@ onMounted(fetchData)
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="remark" type="textarea" :rows="2" placeholder="如有特殊需求请备注（如贺卡内容等）" />
+        <el-form-item label="备注" prop="remark">
+          <el-input v-model="orderForm.remark" type="textarea" :rows="2" placeholder="如有特殊需求请备注（如贺卡内容等）" />
         </el-form-item>
       </el-form>
 

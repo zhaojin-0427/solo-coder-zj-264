@@ -117,6 +117,32 @@ def update_order(
     update_data = order_in.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(order, key, value)
+
+    if "status" in update_data:
+        new_status = update_data["status"]
+        status_map = {
+            "pending": "pending",
+            "producing": "pending",
+            "delivering": "shipping",
+            "delivered": "delivered",
+            "cancelled": "failed",
+        }
+        delivery_status = status_map.get(new_status)
+        if delivery_status:
+            delivery = (
+                db.query(models.Delivery)
+                .filter(models.Delivery.order_id == order_id)
+                .first()
+            )
+            if delivery:
+                delivery.status = delivery_status
+                if new_status == "delivered" and not delivery.actual_delivery_time:
+                    delivery.actual_delivery_time = datetime.utcnow()
+                    if delivery.actual_delivery_time <= order.delivery_time:
+                        delivery.on_time = 1
+                    else:
+                        delivery.on_time = 0
+
     db.commit()
     db.refresh(order)
     return order
