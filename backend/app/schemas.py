@@ -38,6 +38,64 @@ class Flower(FlowerBase):
         from_attributes = True
 
 
+class FlowerBatchBase(BaseModel):
+    flower_id: int
+    total_quantity: int
+    remaining_quantity: int = 0
+    inbound_date: date = date.today()
+    shelf_life_days: int
+    storage_temp: float
+    supplier: Optional[str] = None
+    status: str = "in_stock"
+    remark: Optional[str] = None
+
+
+class FlowerBatchCreate(FlowerBatchBase):
+    pass
+
+
+class FlowerBatchUpdate(BaseModel):
+    flower_id: Optional[int] = None
+    total_quantity: Optional[int] = None
+    remaining_quantity: Optional[int] = None
+    inbound_date: Optional[date] = None
+    shelf_life_days: Optional[int] = None
+    storage_temp: Optional[float] = None
+    supplier: Optional[str] = None
+    status: Optional[str] = None
+    remark: Optional[str] = None
+
+
+class FlowerBatch(FlowerBatchBase):
+    id: int
+    batch_no: str
+    days_left: Optional[int] = None
+    is_warning: Optional[bool] = None
+    is_expired: Optional[bool] = None
+    flower: Optional[Flower] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class OrderItemBatchBase(BaseModel):
+    order_item_id: int
+    batch_id: int
+    flower_id: int
+    quantity: int
+
+
+class OrderItemBatch(OrderItemBatchBase):
+    id: int
+    created_at: datetime
+    batch: Optional[FlowerBatch] = None
+
+    class Config:
+        from_attributes = True
+
+
 class BouquetFlowerBase(BaseModel):
     flower_id: int
     quantity: int
@@ -112,6 +170,7 @@ class OrderItemBase(BaseModel):
 class OrderItem(OrderItemBase):
     id: int
     bouquet: Optional[Bouquet] = None
+    batch_usages: List[OrderItemBatch] = []
 
     class Config:
         from_attributes = True
@@ -160,6 +219,7 @@ class Order(OrderBase):
 
 class MaintenanceLogBase(BaseModel):
     flower_id: int
+    batch_id: Optional[int] = None
     temperature: float
     water_changed: int = 1
     loss_quantity: int = 0
@@ -177,6 +237,7 @@ class MaintenanceLog(MaintenanceLogBase):
     id: int
     created_at: datetime
     flower: Optional[Flower] = None
+    batch: Optional[FlowerBatch] = None
 
     class Config:
         from_attributes = True
@@ -239,9 +300,55 @@ class RepurchaseCycle(BaseModel):
     avg_days_between_orders: float
 
 
+class ProductionScheduleItem(BaseModel):
+    order_id: int
+    order_no: str
+    customer_name: str
+    delivery_time: datetime
+    best_production_time: datetime
+    production_time_minutes: int
+    remaining_shelf_life_days: int
+    status: str
+    items_summary: str
+
+
+class BatchLossRate(BaseModel):
+    batch_id: int
+    batch_no: str
+    flower_name: str
+    total_quantity: int
+    loss_quantity: int
+    loss_rate: float
+
+
+class BatchExpiryStat(BaseModel):
+    total_batches: int
+    expiring_batches: int
+    expiring_ratio: float
+    expired_batches: int
+    expired_ratio: float
+
+
+class FulfillmentRisk(BaseModel):
+    total_orders: int
+    risk_orders: int
+    risk_details: List[dict]
+
+
+class CapacityLoadItem(BaseModel):
+    date: str
+    total_minutes: int
+    order_count: int
+    load_ratio: float
+
+
 class StatsResponse(BaseModel):
     flower_loss_rates: List[FlowerLossRate]
     popular_bouquets: List[PopularBouquet]
     delivery_stats: DeliveryStat
     repurchase_cycles: List[RepurchaseCycle]
     warning_flowers: List[Flower]
+    batch_loss_rates: List[BatchLossRate]
+    batch_expiry: BatchExpiryStat
+    fulfillment_risk: FulfillmentRisk
+    capacity_load: List[CapacityLoadItem]

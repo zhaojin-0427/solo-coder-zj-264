@@ -19,6 +19,29 @@ class Flower(Base):
 
     maintenance_logs = relationship("MaintenanceLog", back_populates="flower")
     bouquet_items = relationship("BouquetFlower", back_populates="flower")
+    batches = relationship("FlowerBatch", back_populates="flower", cascade="all, delete-orphan")
+
+
+class FlowerBatch(Base):
+    __tablename__ = "flower_batches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    flower_id = Column(Integer, ForeignKey("flowers.id"), nullable=False)
+    batch_no = Column(String(50), unique=True, nullable=False)
+    total_quantity = Column(Integer, nullable=False)
+    remaining_quantity = Column(Integer, nullable=False, default=0)
+    inbound_date = Column(Date, nullable=False, default=date.today)
+    shelf_life_days = Column(Integer, nullable=False)
+    storage_temp = Column(Float, nullable=False)
+    supplier = Column(String(200))
+    status = Column(String(20), nullable=False, default="in_stock")
+    remark = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    flower = relationship("Flower", back_populates="batches")
+    maintenance_logs = relationship("MaintenanceLog", back_populates="batch")
+    order_item_usages = relationship("OrderItemBatch", back_populates="batch", cascade="all, delete-orphan")
 
 
 class Bouquet(Base):
@@ -94,6 +117,21 @@ class OrderItem(Base):
 
     order = relationship("Order", back_populates="items")
     bouquet = relationship("Bouquet", back_populates="order_items")
+    batch_usages = relationship("OrderItemBatch", back_populates="order_item", cascade="all, delete-orphan")
+
+
+class OrderItemBatch(Base):
+    __tablename__ = "order_item_batches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_item_id = Column(Integer, ForeignKey("order_items.id"), nullable=False)
+    batch_id = Column(Integer, ForeignKey("flower_batches.id"), nullable=False)
+    flower_id = Column(Integer, ForeignKey("flowers.id"), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    order_item = relationship("OrderItem", back_populates="batch_usages")
+    batch = relationship("FlowerBatch", back_populates="order_item_usages")
 
 
 class MaintenanceLog(Base):
@@ -101,6 +139,7 @@ class MaintenanceLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     flower_id = Column(Integer, ForeignKey("flowers.id"), nullable=False)
+    batch_id = Column(Integer, ForeignKey("flower_batches.id"))
     check_date = Column(Date, default=date.today)
     temperature = Column(Float, nullable=False)
     water_changed = Column(Integer, nullable=False, default=1)
@@ -111,6 +150,7 @@ class MaintenanceLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     flower = relationship("Flower", back_populates="maintenance_logs")
+    batch = relationship("FlowerBatch", back_populates="maintenance_logs")
 
 
 class Delivery(Base):

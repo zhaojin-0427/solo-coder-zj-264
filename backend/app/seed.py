@@ -87,6 +87,30 @@ def seed_data(db: Session):
         db.flush()
         flowers.append(f)
 
+    db.flush()
+
+    if db.query(models.FlowerBatch).count() == 0:
+        suppliers = ["昆明花卉基地", "云南花田直供", "上海进口花卉"]
+        for i, f in enumerate(flowers):
+            batch_qty = f.current_stock
+            batch_count = 2 if batch_qty >= 20 else 1
+            for bi in range(batch_count):
+                qty_part = batch_qty // batch_count if bi < batch_count - 1 else batch_qty - (batch_qty // batch_count) * (batch_count - 1)
+                if qty_part <= 0:
+                    continue
+                batch = models.FlowerBatch(
+                    flower_id=f.id,
+                    batch_no=f"B{datetime.now().strftime('%Y%m%d')}{1000 + i * 10 + bi}",
+                    total_quantity=qty_part,
+                    remaining_quantity=qty_part,
+                    inbound_date=f.purchase_date,
+                    shelf_life_days=f.shelf_life_days,
+                    storage_temp=f.storage_temp,
+                    supplier=suppliers[i % len(suppliers)],
+                    status="in_stock",
+                )
+                db.add(batch)
+
     db.commit()
 
     bouquets_data = [

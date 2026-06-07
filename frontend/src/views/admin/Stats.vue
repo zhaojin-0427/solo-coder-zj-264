@@ -154,6 +154,104 @@ const repurchaseOption = computed(() => {
   }
 })
 
+const batchLossRateOption = computed(() => {
+  if (!stats.value) return {}
+  const data = stats.value.batch_loss_rates.slice(0, 8)
+  return {
+    tooltip: { trigger: 'axis' },
+    grid: { left: 60, right: 20, top: 20, bottom: 40 },
+    xAxis: {
+      type: 'category',
+      data: data.map((d) => d.batch_no),
+      axisLabel: { rotate: 30 },
+    },
+    yAxis: {
+      type: 'value',
+      name: '损耗率(%)',
+    },
+    series: [
+      {
+        type: 'bar',
+        data: data.map((d) => d.loss_rate),
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#f56c6c' },
+            { offset: 1, color: '#e6a23c' },
+          ]),
+          borderRadius: [4, 4, 0, 0],
+        },
+        label: { show: true, position: 'top', formatter: '{c}%' },
+      },
+    ],
+  }
+})
+
+const batchExpiryOption = computed(() => {
+  if (!stats.value) return {}
+  const s = stats.value.batch_expiry
+  const normal = s.total_batches - s.expiring_batches - s.expired_batches
+  return {
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { orient: 'vertical', left: 'left' },
+    series: [
+      {
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+        label: { show: true, formatter: '{b}\n{d}%' },
+        data: [
+          { name: '正常批次', value: normal },
+          { name: '临期批次', value: s.expiring_batches },
+          { name: '已过期批次', value: s.expired_batches },
+        ],
+        color: ['#67c23a', '#e6a23c', '#f56c6c'],
+      },
+    ],
+  }
+})
+
+const capacityLoadOption = computed(() => {
+  if (!stats.value) return {}
+  const data = stats.value.capacity_load
+  return {
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: any) => {
+        const p = params[0]
+        return `${p.name}<br/>负载比例: ${p.value}%<br/>订单数: ${data[p.dataIndex].order_count}<br/>总工时: ${data[p.dataIndex].total_minutes} 分钟`
+      },
+    },
+    grid: { left: 60, right: 20, top: 20, bottom: 40 },
+    xAxis: {
+      type: 'category',
+      data: data.map((d) => {
+        const dt = new Date(d.date)
+        return `${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+      }),
+      axisLabel: { rotate: 0 },
+    },
+    yAxis: {
+      type: 'value',
+      name: '负载比例(%)',
+      max: 150,
+    },
+    series: [
+      {
+        type: 'bar',
+        data: data.map((d) => ({
+          value: d.load_ratio,
+          itemStyle: {
+            color: d.load_ratio > 100 ? '#f56c6c' : '#409eff',
+            borderRadius: [4, 4, 0, 0],
+          },
+        })),
+        label: { show: true, position: 'top', formatter: '{c}%' },
+      },
+    ],
+  }
+})
+
 onMounted(fetchData)
 </script>
 
@@ -196,6 +294,41 @@ onMounted(fetchData)
       </el-col>
     </el-row>
 
+    <el-row :gutter="20" style="margin-bottom: 20px;">
+      <el-col :span="6">
+        <div class="stat-card">
+          <div class="stat-card-title">批次总数</div>
+          <div class="stat-card-value" style="color: #909399">
+            {{ stats?.batch_expiry.total_batches || 0 }}
+          </div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="stat-card">
+          <div class="stat-card-title">临期批次</div>
+          <div class="stat-card-value" style="color: #e6a23c">
+            {{ stats?.batch_expiry.expiring_batches || 0 }}
+          </div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="stat-card">
+          <div class="stat-card-title">已过期批次</div>
+          <div class="stat-card-value" style="color: #f56c6c">
+            {{ stats?.batch_expiry.expired_batches || 0 }}
+          </div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="stat-card">
+          <div class="stat-card-title">履约风险订单数</div>
+          <div class="stat-card-value" style="color: #f56c6c">
+            {{ stats?.fulfillment_risk.risk_orders || 0 }}
+          </div>
+        </div>
+      </el-col>
+    </el-row>
+
     <el-alert
       v-if="stats && stats.warning_flowers.length > 0"
       type="warning"
@@ -217,6 +350,58 @@ onMounted(fetchData)
         >
           {{ f.name }}（剩余 {{ f.days_left }} 天）
         </el-tag>
+      </template>
+    </el-alert>
+
+    <el-alert
+      v-if="stats && stats.fulfillment_risk.risk_orders > 0"
+      type="error"
+      show-icon
+      style="margin-bottom: 20px;"
+    >
+      <template #title>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <el-icon><Warning /></el-icon>
+          <span>订单履约风险：共有 {{ stats.fulfillment_risk.risk_orders }} 个订单存在履约风险</span>
+        </div>
+      </template>
+      <template #default>
+        <div style="margin-top: 8px;">
+          <div
+            v-for="detail in stats.fulfillment_risk.risk_details"
+            :key="detail.order_id"
+            style="padding: 8px 0; border-bottom: 1px dashed #e4e7ed;"
+          >
+            <div style="font-weight: 600; margin-bottom: 4px;">
+              订单号：{{ detail.order_no }}
+              <span style="font-weight: normal; color: #909399; margin-left: 12px;">
+                配送时间：{{ detail.delivery_time }}
+              </span>
+            </div>
+            <div>
+              <el-tag
+                v-for="(reason, idx) in detail.reasons"
+                :key="idx"
+                type="danger"
+                effect="light"
+                style="margin-right: 6px;"
+              >
+                {{ reason }}
+              </el-tag>
+            </div>
+          </div>
+        </div>
+      </template>
+    </el-alert>
+
+    <el-alert
+      v-else-if="stats && stats.fulfillment_risk.risk_orders === 0"
+      type="success"
+      show-icon
+      style="margin-bottom: 20px;"
+    >
+      <template #title>
+        <span>订单履约状态正常，暂无风险订单</span>
       </template>
     </el-alert>
 
@@ -247,6 +432,27 @@ onMounted(fetchData)
       </el-col>
     </el-row>
 
+    <el-row :gutter="20">
+      <el-col :span="12" style="margin-bottom: 20px;">
+        <div class="stat-card">
+          <h4 class="section-title">批次损耗率排行</h4>
+          <v-chart :option="batchLossRateOption" style="height: 300px;" autoresize />
+        </div>
+      </el-col>
+      <el-col :span="12" style="margin-bottom: 20px;">
+        <div class="stat-card">
+          <h4 class="section-title">批次临期/过期占比</h4>
+          <v-chart :option="batchExpiryOption" style="height: 300px;" autoresize />
+        </div>
+      </el-col>
+      <el-col :span="24" style="margin-bottom: 20px;">
+        <div class="stat-card">
+          <h4 class="section-title">未来三天产能负载</h4>
+          <v-chart :option="capacityLoadOption" style="height: 300px;" autoresize />
+        </div>
+      </el-col>
+    </el-row>
+
     <div class="stat-card" v-if="stats">
       <h4 class="section-title">花材损耗详情</h4>
       <el-table :data="stats.flower_loss_rates" stripe>
@@ -254,6 +460,24 @@ onMounted(fetchData)
         <el-table-column prop="total_stock" label="总库存(累计)" width="150" />
         <el-table-column prop="total_loss" label="总损耗量" width="120" />
         <el-table-column label="损耗率" width="150">
+          <template #default="{ row }">
+            <el-progress
+              :percentage="row.loss_rate"
+              :color="row.loss_rate > 20 ? '#f56c6c' : row.loss_rate > 10 ? '#e6a23c' : '#67c23a'"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <div class="stat-card" style="margin-top: 20px;" v-if="stats">
+      <h4 class="section-title">批次损耗详情</h4>
+      <el-table :data="stats.batch_loss_rates" stripe>
+        <el-table-column prop="batch_no" label="批次号" />
+        <el-table-column prop="flower_name" label="花材名称" />
+        <el-table-column prop="total_quantity" label="总数量" width="120" />
+        <el-table-column prop="loss_quantity" label="损耗量" width="120" />
+        <el-table-column label="损耗率" width="180">
           <template #default="{ row }">
             <el-progress
               :percentage="row.loss_rate"

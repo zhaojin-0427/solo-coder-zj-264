@@ -17,6 +17,8 @@ const activeMenu = computed(() => route.path)
 
 const menuItems = [
   { path: '/admin/flowers', title: '花材库存', icon: Grid },
+  { path: '/admin/batches', title: '花材批次', icon: Grid },
+  { path: '/admin/production', title: '制作排程', icon: List },
   { path: '/admin/orders', title: '订单管理', icon: List },
   { path: '/admin/maintenance', title: '养护日志', icon: Edit },
   { path: '/admin/deliveries', title: '配送跟踪', icon: Van },

@@ -24,6 +24,31 @@ const filteredOrders = computed(() => {
   return orders.value.filter((o) => o.status === statusFilter.value)
 })
 
+const batchUsageRows = computed(() => {
+  if (!currentOrder.value) return []
+  const rows: Array<{
+    bouquet_name: string
+    flower_name: string
+    batch_no: string
+    quantity: number
+    inbound_date: string
+    days_left: number | undefined
+  }> = []
+  for (const item of currentOrder.value.items) {
+    for (const usage of item.batch_usages) {
+      rows.push({
+        bouquet_name: item.bouquet?.name || '-',
+        flower_name: usage.batch?.flower?.name || '-',
+        batch_no: usage.batch?.batch_no || '-',
+        quantity: usage.quantity,
+        inbound_date: usage.batch?.inbound_date || '-',
+        days_left: usage.batch?.days_left,
+      })
+    }
+  }
+  return rows
+})
+
 const fetchData = async () => {
   loading.value = true
   try {
@@ -178,6 +203,41 @@ onMounted(fetchData)
             </template>
           </el-table-column>
         </el-table>
+
+        <h4 class="section-title" style="margin-top: 20px;">花材批次使用明细</h4>
+        <el-table v-if="batchUsageRows.length > 0" :data="batchUsageRows" border>
+          <el-table-column label="花束名称">
+            <template #default="{ row }">
+              {{ row.bouquet_name }}
+            </template>
+          </el-table-column>
+          <el-table-column label="花材名称">
+            <template #default="{ row }">
+              {{ row.flower_name }}
+            </template>
+          </el-table-column>
+          <el-table-column label="批次号" width="160">
+            <template #default="{ row }">
+              {{ row.batch_no }}
+            </template>
+          </el-table-column>
+          <el-table-column label="使用数量" width="100">
+            <template #default="{ row }">
+              {{ row.quantity }}
+            </template>
+          </el-table-column>
+          <el-table-column label="批次入库日期" width="130">
+            <template #default="{ row }">
+              {{ row.inbound_date }}
+            </template>
+          </el-table-column>
+          <el-table-column label="保鲜剩余天数" width="120">
+            <template #default="{ row }">
+              {{ row.days_left !== undefined ? row.days_left + ' 天' : '-' }}
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-else description="暂无批次使用记录" :image-size="80" />
       </div>
     </el-dialog>
   </div>

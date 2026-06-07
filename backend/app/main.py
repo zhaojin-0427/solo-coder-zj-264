@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
-from .routers import flowers, bouquets, orders, maintenance, deliveries, stats
+from .routers import flowers, bouquets, orders, maintenance, deliveries, stats, batches, production
 from . import seed
 
 Base.metadata.create_all(bind=engine)
@@ -17,10 +17,12 @@ app.add_middleware(
 )
 
 app.include_router(flowers.router, prefix="/api/flowers", tags=["花材库存"])
+app.include_router(batches.router, prefix="/api/batches", tags=["花材批次"])
 app.include_router(bouquets.router, prefix="/api/bouquets", tags=["花束管理"])
 app.include_router(orders.router, prefix="/api/orders", tags=["订单管理"])
 app.include_router(maintenance.router, prefix="/api/maintenance", tags=["养护日志"])
 app.include_router(deliveries.router, prefix="/api/deliveries", tags=["配送跟踪"])
+app.include_router(production.router, prefix="/api/production", tags=["制作排程"])
 app.include_router(stats.router, prefix="/api/stats", tags=["统计分析"])
 
 

@@ -12,6 +12,60 @@ export interface Flower {
   is_warning?: boolean
 }
 
+export interface FlowerBatch {
+  id: number
+  flower_id: number
+  batch_no: string
+  total_quantity: number
+  remaining_quantity: number
+  inbound_date: string
+  shelf_life_days: number
+  storage_temp: number
+  supplier?: string
+  status: string
+  remark?: string
+  days_left?: number
+  is_warning?: boolean
+  is_expired?: boolean
+  flower?: Flower
+  created_at: string
+  updated_at: string
+}
+
+export interface FlowerBatchCreate {
+  flower_id: number
+  total_quantity: number
+  remaining_quantity?: number
+  inbound_date: string
+  shelf_life_days: number
+  storage_temp: number
+  supplier?: string
+  status?: string
+  remark?: string
+}
+
+export interface FlowerBatchUpdate {
+  flower_id?: number
+  total_quantity?: number
+  remaining_quantity?: number
+  inbound_date?: string
+  shelf_life_days?: number
+  storage_temp?: number
+  supplier?: string
+  status?: string
+  remark?: string
+}
+
+export interface OrderItemBatch {
+  id: number
+  order_item_id: number
+  batch_id: number
+  flower_id: number
+  quantity: number
+  created_at: string
+  batch?: FlowerBatch
+}
+
 export interface BouquetFlower {
   id: number
   flower_id: number
@@ -46,6 +100,7 @@ export interface OrderItem {
   quantity: number
   unit_price: number
   bouquet?: Bouquet
+  batch_usages: OrderItemBatch[]
 }
 
 export interface Delivery {
@@ -81,6 +136,7 @@ export interface Order {
 export interface MaintenanceLog {
   id: number
   flower_id: number
+  batch_id?: number
   temperature: number
   water_changed: number
   loss_quantity: number
@@ -90,6 +146,54 @@ export interface MaintenanceLog {
   check_date: string
   created_at: string
   flower?: Flower
+  batch?: FlowerBatch
+}
+
+export interface ProductionScheduleItem {
+  order_id: number
+  order_no: string
+  customer_name: string
+  delivery_time: string
+  best_production_time: string
+  production_time_minutes: number
+  remaining_shelf_life_days: number
+  status: string
+  items_summary: string
+}
+
+export interface BatchLossRate {
+  batch_id: number
+  batch_no: string
+  flower_name: string
+  total_quantity: number
+  loss_quantity: number
+  loss_rate: number
+}
+
+export interface BatchExpiryStat {
+  total_batches: number
+  expiring_batches: number
+  expiring_ratio: number
+  expired_batches: number
+  expired_ratio: number
+}
+
+export interface FulfillmentRisk {
+  total_orders: number
+  risk_orders: number
+  risk_details: Array<{
+    order_id: number
+    order_no: string
+    delivery_time: string
+    reasons: string[]
+  }>
+}
+
+export interface CapacityLoadItem {
+  date: string
+  total_minutes: number
+  order_count: number
+  load_ratio: number
 }
 
 export interface FlowerLossRate {
@@ -126,4 +230,8 @@ export interface StatsResponse {
   delivery_stats: DeliveryStat
   repurchase_cycles: RepurchaseCycle[]
   warning_flowers: Flower[]
+  batch_loss_rates: BatchLossRate[]
+  batch_expiry: BatchExpiryStat
+  fulfillment_risk: FulfillmentRisk
+  capacity_load: CapacityLoadItem[]
 }
