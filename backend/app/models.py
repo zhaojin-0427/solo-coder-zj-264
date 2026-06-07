@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Date
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Date, Boolean, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime, date
 from .database import Base
@@ -98,12 +98,20 @@ class Order(Base):
     delivery_time = Column(DateTime, nullable=False)
     best_production_time = Column(DateTime)
     remark = Column(Text)
+    order_type = Column(String(20), nullable=False, default="retail")
+    subscription_id = Column(Integer, ForeignKey("subscriptions.id"))
+    is_risk = Column(Boolean, default=False)
+    risk_reasons = Column(JSON)
+    service_point_id = Column(Integer, ForeignKey("service_points.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     customer = relationship("Customer", back_populates="orders")
     items = relationship("OrderItem", back_populates="order")
     delivery = relationship("Delivery", back_populates="order", uselist=False)
+    subscription = relationship("Subscription", back_populates="orders")
+    service_point = relationship("ServicePoint", back_populates="orders")
+    service_record = relationship("ServiceRecord", back_populates="order", uselist=False)
 
 
 class OrderItem(Base):
@@ -167,3 +175,101 @@ class Delivery(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     order = relationship("Order", back_populates="delivery")
+
+
+class EnterpriseCustomer(Base):
+    __tablename__ = "enterprise_customers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_name = Column(String(200), nullable=False)
+    contact_person = Column(String(100), nullable=False)
+    contact_phone = Column(String(20), nullable=False)
+    contact_email = Column(String(100))
+    industry = Column(String(100))
+    address = Column(String(500))
+    tax_no = Column(String(50))
+    invoice_title = Column(String(200))
+    bank_info = Column(String(500))
+    remark = Column(Text)
+    status = Column(String(20), nullable=False, default="active")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    service_points = relationship("ServicePoint", back_populates="enterprise_customer", cascade="all, delete-orphan")
+    subscriptions = relationship("Subscription", back_populates="enterprise_customer", cascade="all, delete-orphan")
+
+
+class ServicePoint(Base):
+    __tablename__ = "service_points"
+
+    id = Column(Integer, primary_key=True, index=True)
+    enterprise_customer_id = Column(Integer, ForeignKey("enterprise_customers.id"), nullable=False)
+    location_name = Column(String(200), nullable=False)
+    contact_name = Column(String(100), nullable=False)
+    contact_phone = Column(String(20), nullable=False)
+    address = Column(String(500), nullable=False)
+    floor_room = Column(String(100))
+    default_delivery_time = Column(String(20), default="09:00")
+    access_instructions = Column(Text)
+    status = Column(String(20), nullable=False, default="active")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    enterprise_customer = relationship("EnterpriseCustomer", back_populates="service_points")
+    subscriptions = relationship("Subscription", back_populates="service_point")
+    orders = relationship("Order", back_populates="service_point")
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    subscription_no = Column(String(50), unique=True, nullable=False)
+    enterprise_customer_id = Column(Integer, ForeignKey("enterprise_customers.id"), nullable=False)
+    service_point_id = Column(Integer, ForeignKey("service_points.id"), nullable=False)
+    name = Column(String(200), nullable=False)
+    frequency = Column(String(20), nullable=False, default="weekly")
+    week_days = Column(JSON)
+    month_days = Column(JSON)
+    holiday_policy = Column(String(20), default="skip")
+    holiday_advance_days = Column(Integer, default=1)
+    budget_limit = Column(Float)
+    default_bouquet_id = Column(Integer, ForeignKey("bouquets.id"))
+    preferred_flower_ids = Column(JSON)
+    forbidden_flower_ids = Column(JSON)
+    default_delivery_time = Column(String(20), default="09:00")
+    contract_start_date = Column(Date, nullable=False)
+    contract_end_date = Column(Date, nullable=False)
+    renewal_remind_days = Column(Integer, default=30)
+    status = Column(String(20), nullable=False, default="active")
+    pause_start_date = Column(Date)
+    pause_end_date = Column(Date)
+    remark = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    enterprise_customer = relationship("EnterpriseCustomer", back_populates="subscriptions")
+    service_point = relationship("ServicePoint", back_populates="subscriptions")
+    orders = relationship("Order", back_populates="subscription")
+    default_bouquet = relationship("Bouquet")
+
+
+class ServiceRecord(Base):
+    __tablename__ = "service_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, unique=True)
+    subscription_id = Column(Integer, ForeignKey("subscriptions.id"), nullable=False)
+    enterprise_customer_id = Column(Integer, ForeignKey("enterprise_customers.id"), nullable=False)
+    service_point_id = Column(Integer, ForeignKey("service_points.id"), nullable=False)
+    service_date = Column(Date, nullable=False)
+    feedback = Column(Text)
+    satisfaction = Column(Integer)
+    photo_url = Column(String(500))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    order = relationship("Order", back_populates="service_record")
+    subscription = relationship("Subscription")
+    enterprise_customer = relationship("EnterpriseCustomer")
+    service_point = relationship("ServicePoint")

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
-from typing import List
+from typing import List, Dict
 from datetime import date, datetime, timedelta
 from ..database import get_db
 from .. import models, schemas
@@ -232,6 +232,176 @@ def get_stats(db: Session = Depends(get_db)):
             )
         )
 
+    current_month_start = date(today.year, today.month, 1)
+    enterprise_orders = (
+        db.query(
+            models.Order.enterprise_customer_id if hasattr(models.Order, 'enterprise_customer_id') else models.Subscription.enterprise_customer_id,
+            func.sum(models.Order.total_amount),
+            func.count(models.Order.id.distinct()),
+        )
+        .outerjoin(models.Subscription, models.Order.subscription_id == models.Subscription.id)
+        .filter(
+            and_(
+                models.Order.order_type == "subscription",
+                func.date(models.Order.delivery_time) >= current_month_start,
+                models.Order.status.in_(["delivered", "completed", "delivering", "producing", "pending"]),
+            )
+        )
+        .group_by(models.Subscription.enterprise_customer_id)
+        .all()
+    )
+    enterprise_monthly_consumption = []
+    for ec_id, total_amt, order_cnt in enterprise_orders:
+        if ec_id is None:
+            continue
+        ec = db.query(models.EnterpriseCustomer).filter(models.EnterpriseCustomer.id == ec_id).first()
+        if ec:
+            enterprise_monthly_consumption.append(
+                schemas.EnterpriseMonthlyConsumption(
+                    enterprise_customer_id=ec_id,
+                    company_name=ec.company_name,
+                    month=today.strftime("%Y-%m"),
+                    total_amount=round(float(total_amt or 0), 2),
+                    order_count=int(order_cnt or 0),
+                )
+            )
+    enterprise_monthly_consumption.sort(key=lambda x: x.total_amount, reverse=True)
+
+    renewal_reminders = []
+    active_subs = db.query(models.Subscription).filter(models.Subscription.status.in_(["active", "paused"])).all()
+    month_start = date(today.year, today.month, 1)
+    for sub in active_subs:
+        days_left = (sub.contract_end_date - today).days
+        if days_left <= sub.renewal_remind_days and days_left >= -30:
+            ec = db.query(models.EnterpriseCustomer).filter(models.EnterpriseCustomer.id == sub.enterprise_customer_id).first()
+            sp = db.query(models.ServicePoint).filter(models.ServicePoint.id == sub.service_point_id).first()
+            month_total = (
+                db.query(func.coalesce(func.sum(models.Order.total_amount), 0))
+                .filter(
+                    and_(
+                        models.Order.subscription_id == sub.id,
+                        func.date(models.Order.delivery_time) >= month_start,
+                        models.Order.status.in_(["delivered", "completed", "delivering", "producing", "pending"]),
+                    )
+                )
+                .scalar()
+            )
+            renewal_reminders.append(
+                schemas.RenewalReminder(
+                    subscription_id=sub.id,
+                    subscription_no=sub.subscription_no,
+                    subscription_name=sub.name,
+                    company_name=ec.company_name if ec else "未知",
+                    service_point_name=sp.location_name if sp else "未知",
+                    contract_end_date=sub.contract_end_date,
+                    days_left=days_left,
+                    monthly_amount=round(float(month_total or 0), 2),
+                )
+            )
+    renewal_reminders.sort(key=lambda x: x.days_left)
+
+    point_on_time_rates = []
+    service_points = db.query(models.ServicePoint).filter(models.ServicePoint.status == "active").all()
+    for sp in service_points:
+        deliveries_q = (
+            db.query(models.Delivery)
+            .join(models.Order, models.Delivery.order_id == models.Order.id)
+            .filter(
+                and_(
+                    models.Order.service_point_id == sp.id,
+                    models.Delivery.status == "delivered",
+                )
+            )
+        )
+        total_d = deliveries_q.count()
+        on_time_d = deliveries_q.filter(models.Delivery.on_time == 1).count()
+        if total_d > 0:
+            ec = db.query(models.EnterpriseCustomer).filter(models.EnterpriseCustomer.id == sp.enterprise_customer_id).first()
+            point_on_time_rates.append(
+                schemas.PointOnTimeRate(
+                    service_point_id=sp.id,
+                    location_name=sp.location_name,
+                    company_name=ec.company_name if ec else "未知",
+                    total_deliveries=total_d,
+                    on_time_deliveries=on_time_d,
+                    late_deliveries=total_d - on_time_d,
+                    on_time_rate=round(on_time_d / total_d * 100, 2),
+                )
+            )
+    point_on_time_rates.sort(key=lambda x: x.on_time_rate)
+
+    subscription_flower_forecast = []
+    flower_req_map: Dict[int, int] = {}
+    active_subs_f = db.query(models.Subscription).filter(models.Subscription.status == "active").all()
+    from .subscriptions import get_subscription_delivery_dates
+    end_30 = today + timedelta(days=30)
+    for sub in active_subs_f:
+        dates = get_subscription_delivery_dates(sub, today, end_30)
+        bouquet = None
+        if sub.default_bouquet_id:
+            bouquet = db.query(models.Bouquet).filter(models.Bouquet.id == sub.default_bouquet_id).first()
+        if not bouquet:
+            first_b = db.query(models.Bouquet).first()
+            bouquet = first_b
+        if bouquet:
+            for _ in dates:
+                for bf in bouquet.flowers:
+                    if bf.flower_id not in flower_req_map:
+                        flower_req_map[bf.flower_id] = 0
+                    flower_req_map[bf.flower_id] += bf.quantity
+    for fid, qty in flower_req_map.items():
+        flower = db.query(models.Flower).filter(models.Flower.id == fid).first()
+        cur_stock = flower.current_stock if flower else 0
+        subscription_flower_forecast.append(
+            schemas.SubscriptionFlowerForecast(
+                flower_id=fid,
+                flower_name=flower.name if flower else f"花材{fid}",
+                forecast_quantity=qty,
+                current_stock=cur_stock,
+                safe_stock=max(qty, int(cur_stock * 0.3)) if flower else 0,
+            )
+        )
+    subscription_flower_forecast.sort(key=lambda x: x.forecast_quantity, reverse=True)
+
+    capacity_load_30 = []
+    for day_offset in range(30):
+        d = today + timedelta(days=day_offset)
+        next_d = d + timedelta(days=1)
+        day_orders = (
+            db.query(models.Order)
+            .filter(
+                and_(
+                    func.date(models.Order.delivery_time) >= d,
+                    func.date(models.Order.delivery_time) < next_d,
+                    models.Order.status.in_(["pending", "producing"]),
+                )
+            )
+            .all()
+        )
+        total_minutes = 0
+        sub_minutes = 0
+        retail_minutes = 0
+        for o in day_orders:
+            for item in o.items:
+                if item.bouquet:
+                    mins = item.bouquet.production_time_minutes * item.quantity
+                    total_minutes += mins
+                    if o.order_type == "subscription":
+                        sub_minutes += mins
+                    else:
+                        retail_minutes += mins
+        load_ratio = round(total_minutes / work_minutes_per_day * 100, 2) if work_minutes_per_day > 0 else 0.0
+        capacity_load_30.append(
+            schemas.CapacityLoad30Item(
+                date=d.isoformat(),
+                total_minutes=total_minutes,
+                order_count=len(day_orders),
+                load_ratio=min(load_ratio, 999.99),
+                subscription_minutes=sub_minutes,
+                retail_minutes=retail_minutes,
+            )
+        )
+
     return schemas.StatsResponse(
         flower_loss_rates=flower_loss_rates,
         popular_bouquets=popular_bouquets,
@@ -242,4 +412,9 @@ def get_stats(db: Session = Depends(get_db)):
         batch_expiry=batch_expiry,
         fulfillment_risk=fulfillment_risk,
         capacity_load=capacity_load,
+        enterprise_monthly_consumption=enterprise_monthly_consumption,
+        renewal_reminders=renewal_reminders,
+        point_on_time_rates=point_on_time_rates,
+        subscription_flower_forecast=subscription_flower_forecast,
+        capacity_load_30=capacity_load_30,
     )

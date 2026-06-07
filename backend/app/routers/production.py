@@ -54,6 +54,12 @@ def compute_schedule(
                             min_days_left = dl
         if min_days_left == 999:
             min_days_left = 0
+        sub_name = None
+        sp_name = None
+        if order.subscription:
+            sub_name = order.subscription.name
+        if order.service_point:
+            sp_name = order.service_point.location_name
         result.append(
             schemas.ProductionScheduleItem(
                 order_id=order.id,
@@ -65,6 +71,11 @@ def compute_schedule(
                 remaining_shelf_life_days=min_days_left,
                 status=order.status,
                 items_summary="，".join(items_summary_parts),
+                order_type=order.order_type or "retail",
+                is_risk=order.is_risk or False,
+                risk_reasons=order.risk_reasons,
+                subscription_name=sub_name,
+                service_point_name=sp_name,
             )
         )
     return result

@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+import random, string
 from ..database import get_db
 from .. import models, schemas
 from .batches import deduct_batch_stock, release_batch_stock, enrich_batch
@@ -10,7 +11,8 @@ router = APIRouter()
 
 
 def generate_order_no() -> str:
-    return f"FL{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    return f"FL{datetime.now().strftime('%Y%m%d%H%M%S')}{suffix}"
 
 
 def enrich_order_batches(order) -> schemas.Order:
@@ -165,6 +167,24 @@ def update_order(
                         delivery.on_time = 1
                     else:
                         delivery.on_time = 0
+
+    if "status" in update_data and update_data["status"] == "delivered" and order.order_type == "subscription":
+        existing_sr = (
+            db.query(models.ServiceRecord)
+            .filter(models.ServiceRecord.order_id == order.id)
+            .first()
+        )
+        if not existing_sr and order.subscription_id:
+            sub = db.query(models.Subscription).filter(models.Subscription.id == order.subscription_id).first()
+            if sub:
+                sr = models.ServiceRecord(
+                    order_id=order.id,
+                    subscription_id=sub.id,
+                    enterprise_customer_id=sub.enterprise_customer_id,
+                    service_point_id=order.service_point_id or sub.service_point_id,
+                    service_date=order.delivery_time.date() if order.delivery_time else date.today(),
+                )
+                db.add(sr)
 
     db.commit()
     db.refresh(order)

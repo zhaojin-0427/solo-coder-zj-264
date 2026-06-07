@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElTooltip } from 'element-plus'
+import { Warning } from '@element-plus/icons-vue'
 import { getProductionSchedule, getTodaySchedule, updateProductionStatus } from '@/api/production'
 import type { ProductionScheduleItem } from '@/types'
 
@@ -15,6 +16,11 @@ const statusMap: Record<string, { label: string; type: string }> = {
   delivering: { label: '配送中', type: '' },
   delivered: { label: '已送达', type: 'success' },
   cancelled: { label: '已取消', type: 'info' },
+}
+
+const typeMap: Record<string, { label: string; type: string }> = {
+  retail: { label: '零售', type: 'info' },
+  subscription: { label: '订阅', type: 'primary' },
 }
 
 const nextStatusMap: Record<string, string> = {
@@ -87,31 +93,55 @@ onMounted(fetchData)
 
     <el-table :data="sortedSchedule" v-loading="loading" stripe style="width: 100%">
       <el-table-column prop="order_no" label="订单号" width="180" />
-      <el-table-column prop="customer_name" label="客户" width="120" />
-      <el-table-column label="期望送达" width="160">
+      <el-table-column label="类型" width="80">
+        <template #default="{ row }">
+          <el-tag :type="typeMap[row.order_type || 'retail']?.type || 'info'" size="small">
+            {{ typeMap[row.order_type || 'retail']?.label || '零售' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="风险" width="60" align="center">
+        <template #default="{ row }">
+          <el-tooltip v-if="row.is_risk" :content="(row.risk_reasons || []).join('；')">
+            <el-icon :size="18" color="#f56c6c"><Warning /></el-icon>
+          </el-tooltip>
+          <span v-else style="color: #67c23a;">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="客户/企业" width="130">
+        <template #default="{ row }">
+          {{ row.customer_name || row.subscription_name || '-' }}
+        </template>
+      </el-table-column>
+      <el-table-column label="服务点位" min-width="130" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ row.service_point_name || '-' }}
+        </template>
+      </el-table-column>
+      <el-table-column label="期望送达" width="150">
         <template #default="{ row }">
           {{ formatDateTime(row.delivery_time) }}
         </template>
       </el-table-column>
-      <el-table-column label="最佳制作时间" width="160">
+      <el-table-column label="最佳制作时间" width="150">
         <template #default="{ row }">
           {{ formatDateTime(row.best_production_time) }}
         </template>
       </el-table-column>
-      <el-table-column label="制作时长" width="100">
+      <el-table-column label="制作时长" width="90">
         <template #default="{ row }">
           {{ row.production_time_minutes }}分钟
         </template>
       </el-table-column>
-      <el-table-column label="花材剩余保鲜" width="130">
+      <el-table-column label="花材剩余保鲜" width="120">
         <template #default="{ row }">
           <span :style="getShelfLifeClass(row.remaining_shelf_life_days)">
             {{ row.remaining_shelf_life_days }}天
           </span>
         </template>
       </el-table-column>
-      <el-table-column prop="items_summary" label="花束明细" min-width="200" show-overflow-tooltip />
-      <el-table-column label="状态" width="100">
+      <el-table-column prop="items_summary" label="花束明细" min-width="180" show-overflow-tooltip />
+      <el-table-column label="状态" width="90">
         <template #default="{ row }">
           <el-tag
             :type="statusMap[row.status]?.type || 'info'"

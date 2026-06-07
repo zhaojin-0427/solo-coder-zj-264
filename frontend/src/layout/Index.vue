@@ -8,6 +8,8 @@ import {
   Van,
   DataAnalysis,
   Shop,
+  OfficeBuilding,
+  Calendar,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -22,6 +24,8 @@ const menuItems = [
   { path: '/admin/orders', title: '订单管理', icon: List },
   { path: '/admin/maintenance', title: '养护日志', icon: Edit },
   { path: '/admin/deliveries', title: '配送跟踪', icon: Van },
+  { path: '/admin/enterprise-customers', title: '企业客户', icon: OfficeBuilding },
+  { path: '/admin/subscriptions', title: '订阅管理', icon: Calendar },
   { path: '/admin/stats', title: '统计分析', icon: DataAnalysis },
 ]
 

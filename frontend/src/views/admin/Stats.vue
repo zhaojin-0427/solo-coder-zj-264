@@ -252,6 +252,113 @@ const capacityLoadOption = computed(() => {
   }
 })
 
+const enterpriseMonthlyOption = computed(() => {
+  if (!stats.value) return {}
+  const data = stats.value.enterprise_monthly_consumption || []
+  return {
+    tooltip: { trigger: 'axis', formatter: (p: any) => `${p[0].axisValue}<br/>${p.map((x: any) => `${x.seriesName}: ¥${x.value.toFixed(2)}`).join('<br/>')}` },
+    legend: { top: 0, type: 'scroll' },
+    grid: { left: 60, right: 20, top: 40, bottom: 40 },
+    xAxis: { type: 'category', data: Array.from(new Set(data.map((d) => d.month))), axisLabel: { rotate: 30 } },
+    yAxis: { type: 'value', name: '消费金额(元)' },
+    series: Array.from(new Set(data.map((d) => d.company_name))).map((name) => ({
+      name,
+      type: 'bar',
+      stack: 'total',
+      emphasis: { focus: 'series' },
+      data: Array.from(new Set(data.map((d) => d.month))).map((m) => {
+        const it = data.find((x) => x.company_name === name && x.month === m)
+        return it ? it.total_amount : 0
+      }),
+    })),
+  }
+})
+
+const pointOnTimeOption = computed(() => {
+  if (!stats.value) return {}
+  const data = stats.value.point_on_time_rates || []
+  return {
+    tooltip: { trigger: 'axis', formatter: (p: any) => `${p[0].name}<br/>准时率: ${p[0].value}%<br/>配送总数: ${data[p[0].dataIndex].total_deliveries}<br/>准时数: ${data[p[0].dataIndex].on_time_deliveries}` },
+    grid: { left: 180, right: 20, top: 20, bottom: 40 },
+    xAxis: { type: 'value', name: '准时率(%)', max: 100 },
+    yAxis: { type: 'category', data: data.map((d) => `${d.company_name}-${d.location_name}`.slice(0, 30)) },
+    series: [
+      {
+        type: 'bar',
+        data: data.map((d) => ({
+          value: d.on_time_rate,
+          itemStyle: { color: d.on_time_rate >= 95 ? '#67c23a' : d.on_time_rate >= 80 ? '#e6a23c' : '#f56c6c', borderRadius: [0, 4, 4, 0] },
+        })),
+        label: { show: true, position: 'right', formatter: '{c}%' },
+      },
+    ],
+  }
+})
+
+const subscriptionFlowerOption = computed(() => {
+  if (!stats.value) return {}
+  const data = (stats.value.subscription_flower_forecast || []).slice(0, 15)
+  return {
+    tooltip: { trigger: 'axis', formatter: (p: any) => `${p[0].name}<br/>预测消耗量: ${p[0].value}<br/>当前库存: ${data[p[0].dataIndex].current_stock}<br/>安全库存: ${data[p[0].dataIndex].safe_stock}` },
+    grid: { left: 60, right: 20, top: 20, bottom: 40 },
+    xAxis: { type: 'category', data: data.map((d) => d.flower_name), axisLabel: { rotate: 30 } },
+    yAxis: { type: 'value', name: '数量(枝/扎)' },
+    legend: { top: 0 },
+    series: [
+      { name: '预测消耗', type: 'bar', data: data.map((d) => d.forecast_quantity), itemStyle: { color: '#409eff', borderRadius: [4, 4, 0, 0] }, label: { show: true, position: 'top' } },
+      { name: '当前库存', type: 'bar', data: data.map((d) => d.current_stock), itemStyle: { color: '#67c23a', borderRadius: [4, 4, 0, 0] } },
+      { name: '安全库存', type: 'line', data: data.map((d) => d.safe_stock), itemStyle: { color: '#f56c6c' }, lineStyle: { type: 'dashed' } },
+    ],
+  }
+})
+
+const capacityLoad30Option = computed(() => {
+  if (!stats.value) return {}
+  const data = stats.value.capacity_load_30 || []
+  const WORK_MINUTES = 480
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params: any) => {
+        const idx = params[0].dataIndex
+        const d = data[idx]
+        return `${d.date}<br/>订阅工时: ${d.subscription_minutes} 分钟<br/>零售工时: ${d.retail_minutes} 分钟<br/>总负载: ${d.load_ratio}%`
+      },
+    },
+    legend: { top: 0 },
+    grid: { left: 60, right: 20, top: 40, bottom: 50 },
+    xAxis: {
+      type: 'category',
+      data: data.map((d) => {
+        const dt = new Date(d.date)
+        return `${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+      }),
+      axisLabel: { rotate: 45, fontSize: 10 },
+    },
+    yAxis: [
+      { type: 'value', name: '工时(分钟)', max: WORK_MINUTES * 1.5 },
+      { type: 'value', name: '负载(%)', max: 150, axisLine: { show: false }, splitLine: { show: false } },
+    ],
+    series: [
+      { name: '订阅工时', type: 'bar', stack: 'total', data: data.map((d) => d.subscription_minutes), itemStyle: { color: '#409eff' } },
+      { name: '零售工时', type: 'bar', stack: 'total', data: data.map((d) => d.retail_minutes), itemStyle: { color: '#67c23a' } },
+      {
+        name: '负载率',
+        type: 'line',
+        yAxisIndex: 1,
+        data: data.map((d) => ({
+          value: d.load_ratio,
+          itemStyle: { color: d.load_ratio > 100 ? '#f56c6c' : '#e6a23c' },
+        })),
+        lineStyle: { width: 2, color: '#e6a23c' },
+        symbol: 'circle',
+        symbolSize: 6,
+      },
+    ],
+  }
+})
+
 onMounted(fetchData)
 </script>
 
@@ -324,6 +431,41 @@ onMounted(fetchData)
           <div class="stat-card-title">履约风险订单数</div>
           <div class="stat-card-value" style="color: #f56c6c">
             {{ stats?.fulfillment_risk.risk_orders || 0 }}
+          </div>
+        </div>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="20" style="margin-bottom: 20px;">
+      <el-col :span="6">
+        <div class="stat-card">
+          <div class="stat-card-title">企业客户数</div>
+          <div class="stat-card-value" style="color: #409eff">
+            {{ new Set((stats?.enterprise_monthly_consumption || []).map(e => e.enterprise_customer_id)).size }}
+          </div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="stat-card">
+          <div class="stat-card-title">续约提醒</div>
+          <div class="stat-card-value" style="color: #e6a23c">
+            {{ stats?.renewal_reminders?.length || 0 }}
+          </div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="stat-card">
+          <div class="stat-card-title">服务点位数</div>
+          <div class="stat-card-value" style="color: #67c23a">
+            {{ stats?.point_on_time_rates?.length || 0 }}
+          </div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="stat-card">
+          <div class="stat-card-title">未来30天产能负载</div>
+          <div class="stat-card-value" :style="{ color: (stats?.capacity_load_30 || []).filter(d => d.load_ratio > 100).length ? '#f56c6c' : '#67c23a' }">
+            {{ (stats?.capacity_load_30 || []).filter(d => d.load_ratio > 100).length + ' 天超载' }}
           </div>
         </div>
       </el-col>
@@ -516,6 +658,100 @@ onMounted(fetchData)
             <el-tag :type="row.avg_days_between_orders <= 7 ? 'success' : 'warning'">
               {{ row.avg_days_between_orders }} 天
             </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <el-alert
+      v-if="stats && (stats.renewal_reminders || []).length > 0"
+      type="warning"
+      show-icon
+      style="margin: 20px 0;"
+    >
+      <template #title>
+        <span>订阅续约提醒：共 {{ stats.renewal_reminders.length }} 个订阅即将到期</span>
+      </template>
+    </el-alert>
+
+    <div class="stat-card" style="margin-top: 20px;" v-if="stats && (stats.renewal_reminders || []).length > 0">
+      <h4 class="section-title">订阅续约提醒</h4>
+      <el-table :data="stats.renewal_reminders" stripe>
+        <el-table-column prop="subscription_no" label="订阅编号" width="160" />
+        <el-table-column prop="subscription_name" label="订阅名称" />
+        <el-table-column prop="company_name" label="企业客户" />
+        <el-table-column prop="contract_end_date" label="合同到期日" width="140" />
+        <el-table-column label="剩余天数" width="120">
+          <template #default="{ row }">
+            <el-tag :type="row.days_left <= 7 ? 'danger' : row.days_left <= 30 ? 'warning' : 'info'">
+              {{ row.days_left }} 天
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="monthly_amount" label="月均消费" width="120">
+          <template #default="{ row }">¥{{ (row.monthly_amount || 0).toFixed(2) }}</template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <el-row :gutter="20" style="margin-top: 20px;">
+      <el-col :span="24" style="margin-bottom: 20px;">
+        <div class="stat-card">
+          <h4 class="section-title">企业客户月度消费</h4>
+          <v-chart :option="enterpriseMonthlyOption" style="height: 320px;" autoresize />
+        </div>
+      </el-col>
+      <el-col :span="12" style="margin-bottom: 20px;">
+        <div class="stat-card">
+          <h4 class="section-title">点位履约准时率</h4>
+          <v-chart :option="pointOnTimeOption" style="height: 320px;" autoresize />
+        </div>
+      </el-col>
+      <el-col :span="12" style="margin-bottom: 20px;">
+        <div class="stat-card">
+          <h4 class="section-title">订阅花材30天消耗预测</h4>
+          <v-chart :option="subscriptionFlowerOption" style="height: 320px;" autoresize />
+        </div>
+      </el-col>
+      <el-col :span="24" style="margin-bottom: 20px;">
+        <div class="stat-card">
+          <h4 class="section-title">未来30天产能负载（订阅/零售堆叠）</h4>
+          <v-chart :option="capacityLoad30Option" style="height: 340px;" autoresize />
+        </div>
+      </el-col>
+    </el-row>
+
+    <div class="stat-card" style="margin-top: 20px;" v-if="stats && (stats.point_on_time_rates || []).length > 0">
+      <h4 class="section-title">点位履约详情</h4>
+      <el-table :data="stats.point_on_time_rates" stripe>
+        <el-table-column prop="company_name" label="企业客户" />
+        <el-table-column prop="location_name" label="服务点位" />
+        <el-table-column prop="total_deliveries" label="配送总数" width="100" />
+        <el-table-column prop="on_time_deliveries" label="准时数" width="100" />
+        <el-table-column label="准时率" width="180">
+          <template #default="{ row }">
+            <el-progress
+              :percentage="row.on_time_rate"
+              :color="row.on_time_rate >= 95 ? '#67c23a' : row.on_time_rate >= 80 ? '#e6a23c' : '#f56c6c'"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column prop="late_deliveries" label="延迟数" width="100" />
+      </el-table>
+    </div>
+
+    <div class="stat-card" style="margin-top: 20px;" v-if="stats && (stats.subscription_flower_forecast || []).length > 0">
+      <h4 class="section-title">订阅花材消耗预测详情</h4>
+      <el-table :data="stats.subscription_flower_forecast" stripe>
+        <el-table-column prop="flower_name" label="花材名称" />
+        <el-table-column prop="forecast_quantity" label="30天预测消耗" width="140" />
+        <el-table-column prop="current_stock" label="当前库存" width="120" />
+        <el-table-column prop="safe_stock" label="安全库存" width="120" />
+        <el-table-column label="库存风险" width="120">
+          <template #default="{ row }">
+            <el-tag v-if="row.current_stock < row.safe_stock" type="danger">不足</el-tag>
+            <el-tag v-else-if="row.current_stock < row.forecast_quantity" type="warning">紧张</el-tag>
+            <el-tag v-else type="success">充足</el-tag>
           </template>
         </el-table-column>
       </el-table>

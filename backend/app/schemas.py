@@ -207,11 +207,18 @@ class Order(OrderBase):
     order_no: str
     status: str
     best_production_time: Optional[datetime] = None
+    order_type: str = "retail"
+    subscription_id: Optional[int] = None
+    is_risk: bool = False
+    risk_reasons: Optional[List[str]] = None
+    service_point_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     customer: Optional[Customer] = None
     items: List[OrderItem] = []
     delivery: Optional["Delivery"] = None
+    subscription: Optional["Subscription"] = None
+    service_point: Optional["ServicePoint"] = None
 
     class Config:
         from_attributes = True
@@ -269,9 +276,6 @@ class Delivery(DeliveryBase):
         from_attributes = True
 
 
-Order.model_rebuild()
-
-
 class FlowerLossRate(BaseModel):
     flower_id: int
     flower_name: str
@@ -310,6 +314,11 @@ class ProductionScheduleItem(BaseModel):
     remaining_shelf_life_days: int
     status: str
     items_summary: str
+    order_type: str = "retail"
+    is_risk: bool = False
+    risk_reasons: Optional[List[str]] = None
+    subscription_name: Optional[str] = None
+    service_point_name: Optional[str] = None
 
 
 class BatchLossRate(BaseModel):
@@ -342,6 +351,242 @@ class CapacityLoadItem(BaseModel):
     load_ratio: float
 
 
+class EnterpriseCustomerBase(BaseModel):
+    company_name: str
+    contact_person: str
+    contact_phone: str
+    contact_email: Optional[str] = None
+    industry: Optional[str] = None
+    address: Optional[str] = None
+    tax_no: Optional[str] = None
+    invoice_title: Optional[str] = None
+    bank_info: Optional[str] = None
+    remark: Optional[str] = None
+    status: str = "active"
+
+
+class EnterpriseCustomerCreate(EnterpriseCustomerBase):
+    pass
+
+
+class EnterpriseCustomerUpdate(BaseModel):
+    company_name: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    industry: Optional[str] = None
+    address: Optional[str] = None
+    tax_no: Optional[str] = None
+    invoice_title: Optional[str] = None
+    bank_info: Optional[str] = None
+    remark: Optional[str] = None
+    status: Optional[str] = None
+
+
+class EnterpriseCustomer(EnterpriseCustomerBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    service_points: List["ServicePoint"] = []
+
+    class Config:
+        from_attributes = True
+
+
+class ServicePointBase(BaseModel):
+    enterprise_customer_id: int
+    location_name: str
+    contact_name: str
+    contact_phone: str
+    address: str
+    floor_room: Optional[str] = None
+    default_delivery_time: str = "09:00"
+    access_instructions: Optional[str] = None
+    status: str = "active"
+
+
+class ServicePointCreate(ServicePointBase):
+    pass
+
+
+class ServicePointUpdate(BaseModel):
+    enterprise_customer_id: Optional[int] = None
+    location_name: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    address: Optional[str] = None
+    floor_room: Optional[str] = None
+    default_delivery_time: Optional[str] = None
+    access_instructions: Optional[str] = None
+    status: Optional[str] = None
+
+
+class ServicePoint(ServicePointBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SubscriptionBase(BaseModel):
+    enterprise_customer_id: int
+    service_point_id: int
+    name: str
+    frequency: str = "weekly"
+    week_days: Optional[List[int]] = None
+    month_days: Optional[List[int]] = None
+    holiday_policy: str = "skip"
+    holiday_advance_days: int = 1
+    budget_limit: Optional[float] = None
+    default_bouquet_id: Optional[int] = None
+    preferred_flower_ids: Optional[List[int]] = None
+    forbidden_flower_ids: Optional[List[int]] = None
+    default_delivery_time: str = "09:00"
+    contract_start_date: date
+    contract_end_date: date
+    renewal_remind_days: int = 30
+    status: str = "active"
+    pause_start_date: Optional[date] = None
+    pause_end_date: Optional[date] = None
+    remark: Optional[str] = None
+
+
+class SubscriptionCreate(SubscriptionBase):
+    pass
+
+
+class SubscriptionUpdate(BaseModel):
+    enterprise_customer_id: Optional[int] = None
+    service_point_id: Optional[int] = None
+    name: Optional[str] = None
+    frequency: Optional[str] = None
+    week_days: Optional[List[int]] = None
+    month_days: Optional[List[int]] = None
+    holiday_policy: Optional[str] = None
+    holiday_advance_days: Optional[int] = None
+    budget_limit: Optional[float] = None
+    default_bouquet_id: Optional[int] = None
+    preferred_flower_ids: Optional[List[int]] = None
+    forbidden_flower_ids: Optional[List[int]] = None
+    default_delivery_time: Optional[str] = None
+    contract_start_date: Optional[date] = None
+    contract_end_date: Optional[date] = None
+    renewal_remind_days: Optional[int] = None
+    status: Optional[str] = None
+    pause_start_date: Optional[date] = None
+    pause_end_date: Optional[date] = None
+    remark: Optional[str] = None
+
+
+class PauseSubscription(BaseModel):
+    pause_start_date: date
+    pause_end_date: Optional[date] = None
+
+
+class GenerateOrdersRequest(BaseModel):
+    days: int = 30
+    force: bool = False
+
+
+class BatchConfirmRequest(BaseModel):
+    order_ids: List[int]
+
+
+class Subscription(SubscriptionBase):
+    id: int
+    subscription_no: str
+    created_at: datetime
+    updated_at: datetime
+    enterprise_customer: Optional[EnterpriseCustomer] = None
+    service_point: Optional[ServicePoint] = None
+    default_bouquet: Optional[Bouquet] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ServiceRecordBase(BaseModel):
+    order_id: int
+    subscription_id: int
+    enterprise_customer_id: int
+    service_point_id: int
+    service_date: date
+    feedback: Optional[str] = None
+    satisfaction: Optional[int] = None
+    photo_url: Optional[str] = None
+
+
+class ServiceRecordCreate(ServiceRecordBase):
+    pass
+
+
+class ServiceRecord(ServiceRecordBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    order: Optional[Order] = None
+
+    class Config:
+        from_attributes = True
+
+
+class FulfillmentRiskAssessment(BaseModel):
+    can_fulfill: bool
+    reasons: List[str]
+    stock_available: dict
+    stock_required: dict
+    capacity_minutes: int
+    capacity_available: int
+
+
+class EnterpriseMonthlyConsumption(BaseModel):
+    enterprise_customer_id: int
+    company_name: str
+    month: str
+    total_amount: float
+    order_count: int
+
+
+class RenewalReminder(BaseModel):
+    subscription_id: int
+    subscription_no: str
+    subscription_name: str
+    company_name: str
+    service_point_name: str
+    contract_end_date: date
+    days_left: int
+    monthly_amount: float = 0.0
+
+
+class PointOnTimeRate(BaseModel):
+    service_point_id: int
+    location_name: str
+    company_name: str
+    total_deliveries: int
+    on_time_deliveries: int
+    late_deliveries: int = 0
+    on_time_rate: float
+
+
+class SubscriptionFlowerForecast(BaseModel):
+    flower_id: int
+    flower_name: str
+    forecast_quantity: int
+    current_stock: int = 0
+    safe_stock: int = 0
+
+
+class CapacityLoad30Item(BaseModel):
+    date: str
+    total_minutes: int
+    order_count: int
+    load_ratio: float
+    subscription_minutes: int
+    retail_minutes: int
+
+
 class StatsResponse(BaseModel):
     flower_loss_rates: List[FlowerLossRate]
     popular_bouquets: List[PopularBouquet]
@@ -352,3 +597,15 @@ class StatsResponse(BaseModel):
     batch_expiry: BatchExpiryStat
     fulfillment_risk: FulfillmentRisk
     capacity_load: List[CapacityLoadItem]
+    enterprise_monthly_consumption: List[EnterpriseMonthlyConsumption] = []
+    renewal_reminders: List[RenewalReminder] = []
+    point_on_time_rates: List[PointOnTimeRate] = []
+    subscription_flower_forecast: List[SubscriptionFlowerForecast] = []
+    capacity_load_30: List[CapacityLoad30Item] = []
+
+
+Delivery.model_rebuild()
+EnterpriseCustomer.model_rebuild()
+ServicePoint.model_rebuild()
+Subscription.model_rebuild()
+Order.model_rebuild()

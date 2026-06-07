@@ -59,6 +59,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/Stats.vue'),
         meta: { title: '统计分析' },
       },
+      {
+        path: 'enterprise-customers',
+        name: 'EnterpriseCustomers',
+        component: () => import('@/views/admin/EnterpriseCustomers.vue'),
+        meta: { title: '企业客户' },
+      },
+      {
+        path: 'subscriptions',
+        name: 'Subscriptions',
+        component: () => import('@/views/admin/Subscriptions.vue'),
+        meta: { title: '订阅管理' },
+      },
     ],
   },
 ]

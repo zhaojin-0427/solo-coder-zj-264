@@ -1,12 +1,12 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
-from .routers import flowers, bouquets, orders, maintenance, deliveries, stats, batches, production
+from .routers import flowers, bouquets, orders, maintenance, deliveries, stats, batches, production, subscriptions
 from . import seed
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="花艺工作室订单管理与花材养护追踪系统", version="1.0.0")
+app = FastAPI(title="花艺工作室订单管理与花材养护追踪系统", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,6 +24,7 @@ app.include_router(maintenance.router, prefix="/api/maintenance", tags=["养护�
 app.include_router(deliveries.router, prefix="/api/deliveries", tags=["配送跟踪"])
 app.include_router(production.router, prefix="/api/production", tags=["制作排程"])
 app.include_router(stats.router, prefix="/api/stats", tags=["统计分析"])
+app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["企业客户订阅"])
 
 
 @app.on_event("startup")
