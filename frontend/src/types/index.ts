@@ -149,6 +149,18 @@ export interface MaintenanceLog {
   batch?: FlowerBatch
 }
 
+export interface MaintenanceLogCreate {
+  flower_id: number
+  batch_id?: number | null
+  temperature: number
+  water_changed: number
+  loss_quantity: number
+  loss_reason?: string
+  status: string
+  note?: string
+  check_date: string
+}
+
 export interface ProductionScheduleItem {
   order_id: number
   order_no: string

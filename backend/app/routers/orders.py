@@ -4,13 +4,26 @@ from typing import List
 from datetime import datetime, timedelta
 from ..database import get_db
 from .. import models, schemas
-from .batches import deduct_batch_stock, release_batch_stock
+from .batches import deduct_batch_stock, release_batch_stock, enrich_batch
 
 router = APIRouter()
 
 
 def generate_order_no() -> str:
     return f"FL{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+
+def enrich_order_batches(order) -> schemas.Order:
+    data = schemas.Order.model_validate(order)
+    for i, item in enumerate(data.items):
+        for j, usage in enumerate(item.batch_usages):
+            if order.items and i < len(order.items):
+                src_item = order.items[i]
+                if src_item.batch_usages and j < len(src_item.batch_usages):
+                    src_usage = src_item.batch_usages[j]
+                    if src_usage.batch:
+                        usage.batch = enrich_batch(src_usage.batch, src_usage.batch.flower)
+    return data
 
 
 @router.get("", response_model=List[schemas.Order])
@@ -21,7 +34,7 @@ def list_orders(
     if status:
         query = query.filter(models.Order.status == status)
     orders = query.order_by(models.Order.created_at.desc()).offset(skip).limit(limit).all()
-    return orders
+    return [enrich_order_batches(o) for o in orders]
 
 
 @router.get("/{order_id}", response_model=schemas.Order)
@@ -29,7 +42,7 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="订单不存在")
-    return order
+    return enrich_order_batches(order)
 
 
 @router.post("", response_model=schemas.Order)
@@ -104,7 +117,7 @@ def create_order(order_in: schemas.OrderCreate, db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(order)
-    return order
+    return enrich_order_batches(order)
 
 
 @router.put("/{order_id}", response_model=schemas.Order)
@@ -155,7 +168,7 @@ def update_order(
 
     db.commit()
     db.refresh(order)
-    return order
+    return enrich_order_batches(order)
 
 
 @router.delete("/{order_id}")

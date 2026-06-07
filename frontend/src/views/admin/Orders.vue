@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Eye, Delete } from '@element-plus/icons-vue'
+import { View, Delete } from '@element-plus/icons-vue'
 import { getOrders, deleteOrder, updateOrder } from '@/api/orders'
 import type { Order, OrderUpdate } from '@/types'
 
@@ -14,6 +14,7 @@ const currentOrder = ref<Order | null>(null)
 const statusMap: Record<string, { label: string; type: string }> = {
   pending: { label: '待处理', type: 'warning' },
   producing: { label: '制作中', type: 'primary' },
+  completed: { label: '制作完成', type: 'success' },
   delivering: { label: '配送中', type: 'info' },
   delivered: { label: '已完成', type: 'success' },
   cancelled: { label: '已取消', type: 'info' },
@@ -144,7 +145,7 @@ onMounted(fetchData)
       </el-table-column>
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" :icon="Eye" @click="handleView(row)">详情</el-button>
+          <el-button link type="primary" :icon="View" @click="handleView(row)">详情</el-button>
           <el-dropdown v-if="row.status !== 'delivered' && row.status !== 'cancelled'" trigger="click" @command="(cmd) => handleStatusChange(row, cmd)">
             <el-button link type="success">更改状态</el-button>
             <template #dropdown>

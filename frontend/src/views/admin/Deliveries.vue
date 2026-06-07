@@ -23,6 +23,7 @@ const formRef = ref()
 
 const statusMap: Record<string, { label: string; type: string }> = {
   pending: { label: '待发货', type: 'warning' },
+  ready: { label: '待发货', type: 'warning' },
   shipping: { label: '配送中', type: 'primary' },
   delivered: { label: '已送达', type: 'success' },
   failed: { label: '配送失败', type: 'danger' },
@@ -160,6 +161,7 @@ onMounted(async () => {
         <el-form-item label="配送状态" prop="status" :rules="[{ required: true, message: '请选择状态' }]">
           <el-select v-model="form.status" style="width: 100%">
             <el-option label="待发货" value="pending" />
+            <el-option label="待发货(已制作)" value="ready" />
             <el-option label="配送中" value="shipping" />
             <el-option label="已送达" value="delivered" />
             <el-option label="配送失败" value="failed" />

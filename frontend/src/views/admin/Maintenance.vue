@@ -1,18 +1,20 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { getFlowers } from '@/api/flowers'
+import { getBatches } from '@/api/batches'
 import {
   getMaintenanceLogs,
   createMaintenanceLog,
   updateMaintenanceLog,
   deleteMaintenanceLog,
 } from '@/api/maintenance'
-import type { MaintenanceLog, MaintenanceLogCreate, Flower } from '@/types'
+import type { MaintenanceLog, MaintenanceLogCreate, Flower, FlowerBatch } from '@/types'
 
 const logs = ref<MaintenanceLog[]>([])
 const flowers = ref<Flower[]>([])
+const batches = ref<FlowerBatch[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -21,6 +23,7 @@ const flowerFilter = ref<number | undefined>(undefined)
 
 const form = ref<MaintenanceLogCreate>({
   flower_id: 0,
+  batch_id: null,
   temperature: 4.0,
   water_changed: 1,
   loss_quantity: 0,
@@ -32,8 +35,17 @@ const form = ref<MaintenanceLogCreate>({
 
 const formRef = ref()
 
+const currentFlowerBatches = computed(() => {
+  if (!form.value.flower_id) return []
+  return batches.value.filter((b) => b.flower_id === form.value.flower_id && b.remaining_quantity > 0)
+})
+
 const fetchFlowers = async () => {
   flowers.value = await getFlowers()
+}
+
+const fetchBatches = async () => {
+  batches.value = await getBatches()
 }
 
 const fetchData = async () => {
@@ -46,11 +58,22 @@ const fetchData = async () => {
   }
 }
 
+watch(
+  () => form.value.flower_id,
+  () => {
+    if (!isEdit.value) {
+      form.value.batch_id = currentFlowerBatches.value[0]?.id ?? null
+    }
+  }
+)
+
 const handleAdd = () => {
   isEdit.value = false
   editingId.value = null
+  const firstFlowerId = flowers.value[0]?.id || 0
   form.value = {
-    flower_id: flowers.value[0]?.id || 0,
+    flower_id: firstFlowerId,
+    batch_id: null,
     temperature: 4.0,
     water_changed: 1,
     loss_quantity: 0,
@@ -58,6 +81,10 @@ const handleAdd = () => {
     status: '良好',
     note: '',
     check_date: new Date().toISOString().split('T')[0],
+  }
+  const firstBatches = batches.value.filter((b) => b.flower_id === firstFlowerId && b.remaining_quantity > 0)
+  if (firstBatches.length > 0) {
+    form.value.batch_id = firstBatches[0].id
   }
   dialogVisible.value = true
 }
@@ -67,6 +94,7 @@ const handleEdit = (row: MaintenanceLog) => {
   editingId.value = row.id
   form.value = {
     flower_id: row.flower_id,
+    batch_id: row.batch_id ?? null,
     temperature: row.temperature,
     water_changed: row.water_changed,
     loss_quantity: row.loss_quantity,
@@ -90,20 +118,30 @@ const handleDelete = async (row: MaintenanceLog) => {
 const handleSubmit = async () => {
   try {
     await formRef.value.validate()
+    const submitData = { ...form.value }
+    if (submitData.batch_id === null || submitData.batch_id === undefined) {
+      delete submitData.batch_id
+    }
     if (isEdit.value && editingId.value) {
-      await updateMaintenanceLog(editingId.value, form.value)
+      await updateMaintenanceLog(editingId.value, submitData)
       ElMessage.success('更新成功')
     } else {
-      await createMaintenanceLog(form.value)
+      await createMaintenanceLog(submitData)
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
     fetchData()
+    fetchBatches()
   } catch {}
 }
 
 const flowerName = (id: number) => {
   return flowers.value.find((f) => f.id === id)?.name || '-'
+}
+
+const batchNo = (batchId?: number) => {
+  if (!batchId) return '-'
+  return batches.value.find((b) => b.id === batchId)?.batch_no || '-'
 }
 
 const statusTagType = (status: string) => {
@@ -114,6 +152,7 @@ const statusTagType = (status: string) => {
 
 onMounted(async () => {
   await fetchFlowers()
+  await fetchBatches()
   fetchData()
 })
 </script>
@@ -146,6 +185,11 @@ onMounted(async () => {
       <el-table-column label="花材" width="120">
         <template #default="{ row }">
           {{ flowerName(row.flower_id) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="批次号" width="180">
+        <template #default="{ row }">
+          {{ batchNo(row.batch_id) }}
         </template>
       </el-table-column>
       <el-table-column label="温度(℃)" width="100">
@@ -193,6 +237,16 @@ onMounted(async () => {
         <el-form-item label="花材" prop="flower_id" :rules="[{ required: true, message: '请选择花材' }]">
           <el-select v-model="form.flower_id" placeholder="请选择花材" style="width: 100%">
             <el-option v-for="f in flowers" :key="f.id" :label="f.name" :value="f.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="批次">
+          <el-select v-model="form.batch_id" placeholder="不选则扣减花材总库存" clearable style="width: 100%">
+            <el-option
+              v-for="b in currentFlowerBatches"
+              :key="b.id"
+              :label="`${b.batch_no} (剩余${b.remaining_quantity}支)`"
+              :value="b.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="检查日期" prop="check_date">
